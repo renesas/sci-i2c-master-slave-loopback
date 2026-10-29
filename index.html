@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc 3.11" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>sci_i2c_notes</title>
+  <style>
+
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: 1.5em;}
+div.column{flex: auto;}
+@media screen {
+div.columns{gap: min(4vw, 1.5em);}
+div.column{overflow-x: auto;}
+}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+
+ul.task-list[class]{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+font-size: inherit;
+width: 0.8em;
+margin: 0 0.8em 0.2em -1.6em;
+vertical-align: middle;
+}
+</style>
+  <style type="text/css">:root {
+--brand: #2b0a8c;
+--accent: #e6007e;
+--ink: #1f2430;
+--muted: #667085;
+--line: #e4e7ec;
+--surface: #f7f7fb;
+}
+* {
+box-sizing: border-box;
+}
+html {
+scroll-behavior: smooth;
+}
+body {
+margin: 0 auto;
+max-width: 1120px;
+padding: 50px;
+color: var(--ink);
+background: #ffffff;
+font-family: "Segoe UI", Arial, sans-serif;
+line-height: 1.65;
+}
+a {
+color: var(--brand);
+}
+a:hover {
+color: var(--accent);
+}
+h1 {
+margin-top: 2.7rem;
+padding-bottom: 0.35rem;
+border-bottom: 2px solid var(--line);
+}
+h2 {
+margin-top: 2.4rem;
+padding-bottom: 0.3rem;
+border-bottom: 1px solid var(--line);
+}
+h3,
+h4,
+h5,
+h6 {
+margin-top: 2rem;
+}
+img {
+display: block;
+max-width: 100%;
+height: auto;
+margin: 1rem auto 0.35rem;
+}
+table {
+width: 100%;
+border-collapse: collapse;
+margin: 1.25rem 0;
+}
+th,
+td {
+border: 1px solid var(--line);
+padding: 0.7rem;
+vertical-align: top;
+}
+th {
+background: var(--surface);
+text-align: left;
+}
+blockquote {
+margin: 1.2rem 0;
+padding: 0.7rem 1rem;
+border-left: 4px solid var(--brand);
+background: var(--surface);
+}
+code {
+font-family: Consolas, "Courier New", monospace;
+}
+pre {
+overflow-x: auto;
+padding: 1rem;
+border-radius: 8px;
+background: var(--surface);
+}
+
+body > h1:first-of-type {
+margin: -50px calc(50% - 50vw) 3rem;
+padding: 3.5rem max(50px, calc((100vw - 1120px) / 2));
+border: 0;
+background: linear-gradient(135deg, #250777, #3e16a3);
+color: #ffffff;
+font-size: clamp(2rem, 5vw, 3.5rem);
+line-height: 1.1;
+}
+@media (max-width: 640px) {
+body {
+padding: 20px;
+}
+body > h1:first-of-type {
+margin-top: -20px;
+padding: 2.5rem 20px;
+}
+}
+</style>
+</head>
+<body>
+<h1 id="sci-i2c-master-loopback">SCI I2C Master Loopback</h1>
+<h2 id="overview">Overview</h2>
+<p>This software building block (SBB) demonstrates SCI I2C Master
+operation in a hardware loopback configuration with an IIC Slave driver
+on supported Renesas RA FPB boards.</p>
+<p>After successful initialization, the reference application
+continuously transmits and receives 6 bytes of data. It compares the
+received data with the transmitted data:</p>
+<ul>
+<li>If the data matches, the on-board LEDs blink.</li>
+<li>If the data does not match, the LEDs remain ON.</li>
+<li>Status and failure messages are displayed on a serial terminal.</li>
+</ul>
+<h2 id="supported-boards">Supported Boards</h2>
+<p>This document covers only the following boards:</p>
+<ul>
+<li>FPB-RA2E3</li>
+<li>FPB-RA4E2</li>
+<li>FPB-RA6E2</li>
+<li>FPB-RA8E1</li>
+</ul>
+<blockquote>
+<p><strong>Important:</strong> The source <code>readme.txt</code> does
+not provide pin, channel, jumper, or validation information for the
+FPB-RA0L1. Board-specific settings for the FPB-RA0L1 must be defined and
+verified before running this SBB on that board.</p>
+</blockquote>
+<h2 id="what-use-case-does-this-sbb-demonstrate">What Use Case Does This
+SBB Demonstrate?</h2>
+<p>The SBB demonstrates how to:</p>
+<ol type="1">
+<li>Configure an SCI peripheral for I2C Master operation.</li>
+<li>Configure an IIC peripheral for I2C Slave operation.</li>
+<li>Connect the Master and Slave interfaces through external jumper
+wires.</li>
+<li>Transfer a 6-byte data sequence continuously.</li>
+<li>Compare transmitted and received data.</li>
+<li>Report pass or fail status through LEDs and serial-terminal
+messages.</li>
+</ol>
+<p>The loopback arrangement is intended as a functional reference for
+SCI I2C Master communication, callback-driven transfer handling,
+board-level I2C wiring, and basic data-integrity verification.</p>
+<h2 id="what-does-the-sbb-core-code-do">What Does the SBB Core Code
+Do?</h2>
+<p>The reusable portion of the SBB is expected to coordinate the
+following operations:</p>
+<ul>
+<li>Initialize the SCI I2C Master interface.</li>
+<li>Initialize the IIC Slave interface.</li>
+<li>Start the Master-to-Slave transfer.</li>
+<li>Receive the data through the Slave interface.</li>
+<li>Track transfer completion and error events.</li>
+<li>Compare the transmitted and received 6-byte buffers.</li>
+<li>Return or expose transfer status to the reference application.</li>
+</ul>
+<p>The source <code>readme.txt</code> describes the behavior but does
+not identify the source filenames, reusable module boundaries, callback
+names, or public API names. Those interfaces should be documented from
+the implementation before publishing the SBB.</p>
+<h2 id="reusable-sbb-code-and-reference-application-code">Reusable SBB
+Code and Reference Application Code</h2>
+<h3 id="reusable-sbb-code">Reusable SBB code</h3>
+<p>Code is reusable when it implements the SCI I2C Master and IIC Slave
+initialization, transfer, callback, synchronization, and
+data-verification behavior without depending on a specific board’s LEDs,
+connector names, or terminal presentation.</p>
+<h3 id="reference-application-code">Reference application code</h3>
+<p>The following behavior is reference-application or demonstration
+behavior:</p>
+<ul>
+<li>Continuous execution of the 6-byte loopback test.</li>
+<li>Blinking the on-board LEDs when the comparison succeeds.</li>
+<li>Keeping the LEDs ON when the comparison fails.</li>
+<li>Printing status and failure messages to a serial terminal.</li>
+<li>Applying board-specific channels, pins, connector positions, and
+jumper settings.</li>
+</ul>
+<p>Applications adopting the SBB may replace these demonstration
+behaviors while retaining the reusable transfer logic.</p>
+<h2 id="public-functions-to-review-first">Public Functions to Review
+First</h2>
+<p>The source <code>readme.txt</code> does not list public function
+names. Before integration, identify and document the implementation
+functions responsible for:</p>
+<ol type="1">
+<li>SBB initialization.</li>
+<li>Starting a transfer.</li>
+<li>Handling SCI I2C Master events.</li>
+<li>Handling IIC Slave events.</li>
+<li>Checking transfer completion.</li>
+<li>Reporting transfer or comparison status.</li>
+<li>Closing or resetting the SBB, if supported.</li>
+</ol>
+<p>Do not assign API names based only on this document. Use the names
+exported by the SBB source and header files.</p>
+<h2 id="hardware-requirements">Hardware Requirements</h2>
+<ul>
+<li>One supported Renesas RA FPB board.</li>
+<li>One USB cable suitable for programming and debugging the selected
+board.</li>
+<li>Two jumper wires for the SDA and SCL loopback connections.</li>
+<li>A host PC with a serial-terminal application, such as Tera Term,
+when terminal logs are required.</li>
+</ul>
+<h2 id="board-configuration-and-connections">Board Configuration and
+Connections</h2>
+<h3 id="fpb-ra2e3">FPB-RA2E3</h3>
+<p>Close E25, E28, E46, and E47 to use the J-Link OB VCOM interface for
+the serial terminal.</p>
+<p>Both the SCI I2C Master and IIC Slave use channel 0.</p>
+<table>
+<thead>
+<tr>
+<th>Signal</th>
+<th>SCI I2C Master</th>
+<th>Connection</th>
+<th>IIC Slave</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SDA</td>
+<td>SDA0, P101, J4:11</td>
+<td>Jumper wire</td>
+<td>SDA0, P401, J3:2</td>
+</tr>
+<tr>
+<td>SCL</td>
+<td>SCL0, P100, J4:12</td>
+<td>Jumper wire</td>
+<td>SCL0, P400, J3:1</td>
+</tr>
+</tbody>
+</table>
+<h3 id="fpb-ra4e2">FPB-RA4E2</h3>
+<p>The SCI I2C Master uses channel 9. The IIC Slave uses channel 0.</p>
+<table>
+<thead>
+<tr>
+<th>Signal</th>
+<th>SCI I2C Master</th>
+<th>Connection</th>
+<th>IIC Slave</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SDA</td>
+<td>SDA9, P109, J4:2</td>
+<td>Jumper wire</td>
+<td>SDA, P101, J4:15</td>
+</tr>
+<tr>
+<td>SCL</td>
+<td>SCL9, P110, J4:3</td>
+<td>Jumper wire</td>
+<td>SCL, P100, J4:16</td>
+</tr>
+</tbody>
+</table>
+<h3 id="fpb-ra6e2">FPB-RA6E2</h3>
+<p>The SCI I2C Master uses channel 9. The IIC Slave uses channel 0.</p>
+<table>
+<thead>
+<tr>
+<th>Signal</th>
+<th>SCI I2C Master</th>
+<th>Connection</th>
+<th>IIC Slave</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SDA</td>
+<td>SDA9, P109, J4:2</td>
+<td>Jumper wire</td>
+<td>SDA, P101, J4:15</td>
+</tr>
+<tr>
+<td>SCL</td>
+<td>SCL9, P110, J4:3</td>
+<td>Jumper wire</td>
+<td>SCL, P100, J4:16</td>
+</tr>
+</tbody>
+</table>
+<h3 id="fpb-ra8e1">FPB-RA8E1</h3>
+<p>The SCI I2C Master uses channel 0. The IIC Slave uses channel 1.</p>
+<table>
+<thead>
+<tr>
+<th>Signal</th>
+<th>SCI I2C Master</th>
+<th>Connection</th>
+<th>IIC Slave</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SDA</td>
+<td>SDA0, P113, J3:17</td>
+<td>Jumper wire</td>
+<td>SDA1, P512, J4:3</td>
+</tr>
+<tr>
+<td>SCL</td>
+<td>SCL0, P112, J3:18</td>
+<td>Jumper wire</td>
+<td>SCL1, P511, J4:4</td>
+</tr>
+</tbody>
+</table>
+<h2 id="electrical-assumptions">Electrical Assumptions</h2>
+<p>For the documented FPB-RA2E3, FPB-RA4E2, FPB-RA6E2, and FPB-RA8E1
+configurations:</p>
+<ul>
+<li>The original project notes do not require external I2C pull-up
+resistors for these boards.</li>
+<li>SDA and SCL must be configured as N-channel open-drain outputs.</li>
+</ul>
+<p>Verify the board schematic and populated components before reusing
+these assumptions on a modified board or another hardware design.</p>
+<h2 id="serial-terminal-configuration">Serial Terminal
+Configuration</h2>
+<p>Use the serial port provided by the J-Link On-Board interface where
+available.</p>
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Speed</td>
+<td>115200 baud</td>
+</tr>
+<tr>
+<td>Data</td>
+<td>8 bits</td>
+</tr>
+<tr>
+<td>Parity</td>
+<td>None</td>
+</tr>
+<tr>
+<td>Stop bits</td>
+<td>1</td>
+</tr>
+<tr>
+<td>Flow control</td>
+<td>None</td>
+</tr>
+</tbody>
+</table>
+<p>For Tera Term:</p>
+<ol type="1">
+<li>Open <strong>Setup &gt; Terminal</strong>.</li>
+<li>Under <strong>New-line</strong>, set both <strong>Receive</strong>
+and <strong>Transmit</strong> to <strong>CR</strong>.</li>
+<li>Enable <strong>Local echo</strong> if typed characters should be
+echoed.</li>
+</ol>
+<h2 id="what-must-change-for-another-board-or-application">What Must
+Change for Another Board or Application?</h2>
+<p>Review and update all hardware-dependent configuration before
+integration.</p>
+<h3 id="pins-and-peripheral-channels">Pins and peripheral channels</h3>
+<ul>
+<li>Select SCI and IIC channels supported by the target MCU.</li>
+<li>Assign valid SDA and SCL pins through the FSP configuration.</li>
+<li>Update connector wiring and loopback instructions.</li>
+<li>Configure SDA and SCL as N-channel open drain.</li>
+<li>Confirm that the bus has suitable pull-up resistors.</li>
+</ul>
+<h3 id="clocks-and-timing">Clocks and timing</h3>
+<ul>
+<li>Recalculate I2C timing for the target peripheral clock.</li>
+<li>Confirm that the selected bus rate is supported by both
+interfaces.</li>
+<li>Review timeout values and synchronization assumptions in the
+implementation.</li>
+</ul>
+<p>The source <code>readme.txt</code> does not state the configured I2C
+bus rate, peripheral clock, timeout values, or measured timing
+margins.</p>
+<h3 id="leds-and-terminal-output">LEDs and terminal output</h3>
+<ul>
+<li>Replace the reference LED mapping with resources available on the
+target board.</li>
+<li>Update the UART or VCOM configuration used for terminal
+messages.</li>
+<li>Remove LED or terminal dependencies if they are not required by the
+product application.</li>
+</ul>
+<h3 id="memory-task-priorities-and-middleware">Memory, task priorities,
+and middleware</h3>
+<p>The source <code>readme.txt</code> does not specify memory usage,
+RTOS requirements, task priorities, stack sizes, or middleware
+configuration. If the SBB is integrated into an RTOS application, review
+callback context, synchronization, task priority, stack usage, and
+shared-resource access in the implementation.</p>
+<h2 id="dependencies">Dependencies</h2>
+<p>The demonstrated project depends on:</p>
+<ul>
+<li>Renesas Flexible Software Package (FSP) configuration for SCI I2C
+Master operation.</li>
+<li>An IIC Slave driver instance.</li>
+<li>MCU pin configuration for SCI/IIC SDA and SCL signals.</li>
+<li>Open-drain I2C outputs and board-level pull-ups.</li>
+<li>Two jumper wires for the physical loopback.</li>
+<li>Board LED resources for pass/fail indication.</li>
+<li>A serial output path and terminal application for status
+messages.</li>
+</ul>
+<p>The source <code>readme.txt</code> does not provide FSP version
+requirements, exact driver module names, middleware versions, or
+resource-instance symbols. Record those details from the project
+configuration and generated files for each released SBB version.</p>
+<h2 id="demonstrated-behavior-and-performance">Demonstrated Behavior and
+Performance</h2>
+<p>The documented reference behavior is:</p>
+<ul>
+<li>Six bytes are transmitted and received continuously after successful
+initialization.</li>
+<li>Matching data causes the on-board LEDs to blink.</li>
+<li>Mismatched data causes the LEDs to remain ON.</li>
+<li>Failure messages and status are displayed on the terminal.</li>
+</ul>
+<p>The source <code>readme.txt</code> does not provide throughput,
+latency, CPU usage, memory usage, bus frequency, test duration, transfer
+count, error rate, or other measured performance results. Do not treat
+the functional loopback result as a quantified performance
+benchmark.</p>
+<h2 id="file-ownership-and-modification-guidance">File Ownership and
+Modification Guidance</h2>
+<p>The source <code>readme.txt</code> does not list the project files.
+Classify files in the delivered project before modification using the
+following rules.</p>
+<h3 id="safe-places-for-customer-changes">Safe places for customer
+changes</h3>
+<ul>
+<li>Customer application source files.</li>
+<li>Board-specific configuration owned by the customer.</li>
+<li>SBB wrapper or adaptation layers.</li>
+<li>Clearly identified user-editable regions in generated integration
+files.</li>
+</ul>
+<h3 id="reusable-sbb-files">Reusable SBB files</h3>
+<p>Keep reusable transfer logic isolated from board-specific LED,
+terminal, and pin configuration. Local changes to reusable SBB files
+should be tracked so they can be reviewed during an upgrade.</p>
+<h3 id="generated-or-preset-files">Generated or preset files</h3>
+<p>Treat FSP-generated source, pin configuration, and configuration
+artifacts as generated unless the project explicitly documents them as
+hand-maintained. Make configuration changes through the supported
+configuration source rather than editing generated output directly.</p>
+<h3 id="demo-only-files">Demo-only files</h3>
+<p>Board LED control, loopback test sequencing, and terminal
+presentation should be treated as demo-only unless the product
+application explicitly adopts them.</p>
+<h2 id="updating-to-a-newer-sbb-release-after-local-modification">Updating
+to a Newer SBB Release After Local Modification</h2>
+<p>To reduce upgrade conflicts:</p>
+<ol type="1">
+<li>Keep the released SBB source unchanged where possible.</li>
+<li>Place product-specific behavior in wrapper, adaptation, or
+application files.</li>
+<li>Keep board configuration separate from reusable transfer logic.</li>
+<li>Record the adopted SBB version and all local modifications.</li>
+<li>When adopting a newer release, compare the old release, locally
+modified version, and new release.</li>
+<li>Reapply only the required local changes.</li>
+<li>Regenerate FSP-managed files using the FSP version required by the
+new release.</li>
+<li>Rebuild and repeat the loopback, LED, terminal, and error-path tests
+on every supported target board.</li>
+</ol>
+<p>Direct edits to reusable or generated files increase the effort
+required to adopt a newer release.</p>
+<h2 id="expected-result">Expected Result</h2>
+<p>After the board is configured, wired, programmed, and started:</p>
+<ol type="1">
+<li>The SCI I2C Master transmits a 6-byte data sequence.</li>
+<li>The IIC Slave receives the sequence through the external SDA and SCL
+loopback wiring.</li>
+<li>The application compares the transmitted and received data.</li>
+<li>The LEDs blink while the data matches.</li>
+<li>The LEDs remain ON if a mismatch is detected.</li>
+<li>Status and failure information is displayed on the serial
+terminal.</li>
+</ol>
+</body>
+</html>
